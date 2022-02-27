@@ -1,0 +1,77 @@
+#!/usr/bin/env groovy
+
+// This is a Jenkins pipeline script which merges your code on bitbucket server, once all the conditions set in Bitbucket configuration by your admin are complete.
+// Typically your repo on Bitbucket server may look like https://bitbucket.XXXX.com/projects/${PROJECT_NAME}/repos/${REPO_NAME}/browse
+
+// The below Pipeline script heavily uses Bitbucket API - https://docs.atlassian.com/bitbucket-server/rest/5.16.0/bitbucket-rest.html
+// Look for {pullRequestId}/merge section
+
+// Please at a look at the REST output in JSON format  https://bitbucket.XXXX.com/rest/api/1.0/projects/${PROJECT_NAME}/repos/${REPO_NAME}/pull-requests/${PR_NUMBER}/merge
+// Above link provides all the fields used in the pipeline script
+
+def project = "${PROJECT_NAME}" // Replace this with a real Project name
+def repoName = "${REPO_NAME}"   // Replace this with a real repo name
+def prNumber = env.PR_NUMBER    // You can probably pass this as a parameter from another Jenkins pipeline
+def pullRequest = "https://bitbucket.etas-dev.com/rest/api/1.0/projects/${project}/repos/${repoName}/pull-requests/${prNumber}"
+
+// For AnsiColor display.
+def escape = '\u001B'
+def reset = '[0m'
+def cyanBackground = '[106m'
+
+node('master'){ // You can run this on master since this doesn't clone your repo locally onto master
+
+    stage("Merge PR-${prNumber}") {
+    	// It's possible that Jenkins has not notified Bitbucket yet about the status of the job which trigger Merge, so sleep for 15 seconds ;)
+    	sleep(15)
+
+        wrap([$class: 'AnsiColorBuildWrapper']) {
+            println "${escape}${cyanBackground}Trying to Merge ${pullRequest}/overview ${escape}${reset}"
+        }
+
+
+        // Install Http request plug-in, Credentials plug-in in Jenkins - https://wiki.jenkins.io/display/JENKINS/HTTP+Request+Plugin
+        // Setup your Jenkins user authentication in Jenkins, which is as ${JENKINS_USER_AUTH_ID} below - https://wiki.jenkins.io/display/JENKINS/Credentials+Plugin
+        def httpResult = httpRequest authentication: '${JENKINS_USER_AUTH_ID}', httpMode: 'GET', url: "${pullRequest}", contentType: 'APPLICATION_JSON'
+        def prData = readJSON text: httpResult.content
+        def version = prData.version // Get version number of PR
+
+        // Is the PR 'mergeable'?
+        httpResult = httpRequest authentication: '${JENKINS_USER_AUTH_ID}', httpMode: 'GET', url: "${pullRequest}/merge", contentType: 'APPLICATION_JSON'
+        def prStatus = readJSON text: httpResult.content
+
+        wrap([$class: 'BuildUser']) {
+            currentBuild.description = "PR-${prNumber} by ${prData.author.user.name}"
+        }
+
+        // Check if PR is actually mergable
+        if(prStatus.canMerge) {
+            // Merge PR!
+            httpRequest authentication: '${JENKINS_USER_AUTH_ID}', httpMode: 'POST', url: "${pullRequest}/merge?version=${version}", contentType: 'APPLICATION_JSON'
+            wrap([$class: 'AnsiColorBuildWrapper']) {
+                println "${escape}${cyanBackground}PR ${pullRequest}/overview MERGED ${escape}${reset}"
+            }
+        } else {
+            wrap([$class: 'AnsiColorBuildWrapper']) {
+                println "${escape}${cyanBackground}Pullrequest PR-${prNumber} didn't Merge${escape}${reset}"
+                println "${escape}${cyanBackground}Possible reasons for the failure are: ${prStatus.vetoes.summaryMessage} & ${prStatus.vetoes.detailedMessage}${escape}${reset}"
+            }
+
+            // Set build status to failure
+            currentBuild.result = 'FAILURE'
+
+            // https://wiki.jenkins.io/display/JENKINS/Email-ext+plugin
+            emailext ( //Notify PR responsible
+                subject: "Update on PR-${prNumber}: Failed to merge!",
+                body: """<p>Hi,</p>
+                <p>Your pull-request PR-${prNumber} failed to merge automatically to master</a></p>
+                <p>Possible reasons for the failure are: ${prStatus.vetoes.summaryMessage} & ${prStatus.vetoes.detailedMessage} </a></p>
+                <p>Check console output at: ${env.BUILD_URL}console </a></p>
+                <p>       </a></p>
+                <p>Thanks </a></p>
+                """,
+                to: prData.author.user.emailAddress
+            )
+        }
+    }
+}
