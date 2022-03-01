@@ -11,7 +11,7 @@ spec:
   source:
     directory:
       recurse: true
-    path: deploy
+    path: dev
     repoURL: https://github.com/bharathr0209/argocd
     targetRevision: HEAD
 
