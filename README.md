@@ -1,30 +1,27 @@
-#### Commands
+# Architecture
 
-```bash
-# install ArgoCD in k8s
-kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+<img src="ArgoCDOpenshift.jpg" width="1328"/>
 
-# access ArgoCD UI
-kubectl get svc -n argocd
-kubectl port-forward svc/argocd-server 8080:443 -n argocd
+## Workflow:
 
-# login with admin user and below token (as in documentation):
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 --decode && echo
+* Argo CD is a declarative, GitOps continuous delivery tool designed for Kubernetes
 
-# you can change and delete init password
+* OpenShift provides out-of-the-box support for ArgoCD with its' built-in GitOps Operator
 
-```
-</br>
+* The development source code along side Infrastructure Helm charts are hosted on GitHub
 
-#### Links
+* Build Artifacts based out of this source code is stored in DockerHub Artifact repository
 
-* Config repo: [https://gitlab.com/nanuchi/argocd-app-config](https://gitlab.com/nanuchi/argocd-app-config)
+* ArgoCD will continuously monitor the source repository hosted on GitHub
 
-* Docker repo: [https://hub.docker.com/repository/docker/nanajanashia/argocd-app](https://hub.docker.com/repository/docker/nanajanashia/argocd-app)
+* When new changes are made to GitHub repository, ArgoCD will detect the changes and syncronizes the latest helm charts
 
-* Install ArgoCD: [https://argo-cd.readthedocs.io/en/stable/getting_started/#1-install-argo-cd](https://argo-cd.readthedocs.io/en/stable/getting_started/#1-install-argo-cd)
+* Deploys the new version changes to OpenShift managed by ROSA
 
-* Login to ArgoCD: [https://argo-cd.readthedocs.io/en/stable/getting_started/#4-login-using-the-cli](https://argo-cd.readthedocs.io/en/stable/getting_started/#4-login-using-the-cli)
 
-* ArgoCD Configuration: [https://argo-cd.readthedocs.io/en/stable/operator-manual/declarative-setup/](https://argo-cd.readthedocs.io/en/stable/operator-manual/declarative-setup/)
+# Prerequisites - Creation of Secret Manager Endpoint
+* An active AWS Account
+* Understanding of OpenShift
+* Understanding of ArgoCD
+* Existing ROSA cluster
+* Existing GitHub Account

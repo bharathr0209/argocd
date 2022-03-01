@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cluster-configs
+  name: argocd-example-app
   namespace: openshift-gitops
 spec:
   destination:
@@ -11,6 +11,14 @@ spec:
   source:
     directory:
       recurse: true
-    path: dev
+    path: deploy
     repoURL: https://github.com/bharathr0209/argocd
     targetRevision: HEAD
+
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+
+    automated:
+      selfHeal: true
+      prune: true
